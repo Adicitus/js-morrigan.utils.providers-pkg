@@ -1,0 +1,22 @@
+{
+  "name": "@adicitus/morrigan.utils.providers",
+  "version": "1.0.0",
+  "description": "Utility to handle the loading and setup of providers for Morrigan.",
+  "main": "Providers.js",
+  "scripts": {
+    "test": "mocha --test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adicitus/js-morrigan.utils.providers-pkg.git"
+  },
+  "keywords": [
+    "morrigan"
+  ],
+  "author": "Joakim Olsson <joakim.olsson@adicitus.cloud>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/adicitus/js-morrigan.utils.providers-pkg/issues"
+  },
+  "homepage": "https://github.com/adicitus/js-morrigan.utils.providers-pkg#readme"
+}
