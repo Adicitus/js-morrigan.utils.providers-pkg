@@ -22,6 +22,7 @@ class Providers {
      *  - route: A path to be appended to the (providerName + route).
      *  - method: A HTTP method.
      *  - handler: A function to be registered as handler fo the endpoint.
+     *  - openapi: A OpenAPI specification for the endpoint path (see https://swagger.io/specification/#path-item-object). This can also be attached directly to the handler.
      * 
      * @param router Express router to register endpoints on.
      * @param providersList Array of module names that should be loaded as providers.
@@ -106,7 +107,18 @@ class Providers {
 
                     log(`${endpoint.method.toUpperCase().padStart(7, ' ')} ${route}`)
 
-                    router[endpoint.method](route, endpoint.handler)
+                    let handler = endpoint.handler
+
+                    if (endpoint.openapi) {
+                        // Create a new anonmyous wrapper for the handler:
+                        handler = (...args) => {
+                            endpoint.handler(...args)
+                        }
+                        // Attach the openapi declaration to the handler:
+                        handler.openapi = endpoint.openapi
+                    }
+
+                    router[endpoint.method](route, handler)
                 }
             }
         }
