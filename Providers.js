@@ -1,25 +1,36 @@
 /**
  * Class containing logic for loading providers and adding them to Morrigan.
  */
-class Providers {
+ class Providers {
 
     /**
      * Enumerates and loads providers specified by providersList, adding any exported endpoints to
      * the provided router object.
      * 
-     * Providers should be installed using npm.
+     * Providers can be specified using a string, and object or a function:
+     *   - A string that should be the name of a module that can be resolved using 'require'.
+     *   - A complex type (object/function) with a combination of the following keys:
+     *     - name: The name under which this provider will be registered.
+     *       If this is provided it overrides the 'name' exported by the module.
+     *     - moduleName: The name of a provider module that should be loaded.
+     *     - module: Either a string indicating the name of a module to load, or a preloaded module object. 
      * 
-     * A provider should export a 'name' key, otherwise it will be dropped. The name should contain
+     * 
+     * Provider should export a 'name' key, otherwise they will be dropped. The name should contain
      * only alphanumeric characters, '-', '_' and '.'.
-     * 
-     * May export a 'endpoints' key and a 'version' key. If no 'version' key is exported, then
-     * the package version will be used.
      * 
      * The 'name' key is used to register the provider internally. If 2 or more providers specify
      * the same name, the provider specified last in the list will be used.
      * 
+     * If the intended module does not specify a name (or if you want to use a different name), this can
+     * be specified by the provider specification.
+     * 
+     * Providers may export a 'endpoints' key and a 'version' key. If no 'version' key is exported, then
+     * the package version will be used. If no package version can be determined (e.g. the module
+     * is pre-loaded) the version will be set to 0.0.0 
+     * 
      * Endpoints should be exported as an array of objects with the following fields:
-     *  - route: A path to be appended to the (providerName + route).
+     *  - route: A path to be appended to the (providerSpec + route).
      *  - method: A HTTP method.
      *  - handler: A function to be registered as handler fo the endpoint.
      *  - openapi: A OpenAPI specification for the endpoint path (see https://swagger.io/specification/#path-item-object). This can also be attached directly to the handler.
@@ -44,29 +55,81 @@ class Providers {
             providers = {}
         }
 
-        providersList.forEach(providerName => {
+        providersList.forEach(providerSpec => {
             try {
-                log(`Loading provider '${providerName}'...`)
-                let provider = require(providerName)
-                if (!provider.name) {
-                    log('Provider does not specify a name, skipping...')
+                // Resolve provider module:
+                switch (typeof providerSpec) {
+                    case "string":
+                        log(`Loading provider '${providerSpec}'...`)
+                        providerSpec = {
+                            moduleName: providerSpec,
+                            module: require(providerSpec)
+                        }
+                        break;
+                    case "object":
+                    case "function":
+                        log(`Reading provider specification: ${JSON.stringify(providerSpec)}`)
+                        if (providerSpec.module) {
+                            log(`Key 'module' is specified as '${typeof providerSpec.module}'`)
+                            if (typeof providerSpec.module == 'string') {
+                                log(`'module' key is a string, interpreting as moduleName and attempting to load module '${providerSpec.module}'...`)
+                                providerSpec = {
+                                    moduleName: providerSpec.module,
+                                    module: require(providerSpec.module)
+                                }
+                            }
+                        } else if (providerSpec.moduleName) {
+                            log(`'moduleName' key specified, loading provider module '${providerSpec.moduleName}'...`)
+                            providerSpec.module = require(providerSpec.moduleName)
+                        } else {
+                            log(`Provider specification '${providerSpec}' neither specifies moduleName or a preloaded module. Skipping.`)
+                            return
+                        }
+                        break;
+                    default:
+                        log(`Invalid provider type for provider '${providerSpec}' (found ${typeof providerSpec}, expected 'string', 'function' or 'object')`)
+                        return
+                }
+
+                let provider = providerSpec.module
+
+                // Verify that the provider publishes a name:
+                if (!(providerSpec.name || provider.name)) {
+                    log('Neither provider specification or provider module specify a name, skipping...')
                     return
                 }
+
+                if (!providerSpec.name && provider.name) {
+                    log(`Provider publishes a name, specification does not, using module name ('${provider.name}')`)
+                    providerSpec.name = provider.name
+                }
+
+                // Verify that the provider name is valid:
                 if (! (/[a-zA-Z0-9\-_.]+/.test(provider.name)) ) {
                     log(`Provider name '${provider.name}' is invalid (should only contain alphanumeric characters, -, _ and .), skipping...`)
                     return
                 }
-                if (!provider.version) {
-                    let mainPath = require.resolve(providerName)
-                    let modulesPath = require.resolve.paths(providerName).find(v => { let rx = new RegExp('^' + v.replaceAll('\\', '\\\\')); return rx.test(mainPath) } )
-                    provider.version = require(`${modulesPath}/${providerName}/package.json`).version
+
+                // Resolving version information:
+                if (providerSpec.module.version) {
+                    providerSpec.version = providerSpec.module.version
+                } else if(providerSpec.moduleName) {
+                    let mainPath = require.resolve(providerSpec.moduleName)
+                    let modulesPath = require.resolve.paths(providerSpec.moduleName).find(v => { let rx = new RegExp('^' + v.replaceAll('\\', '\\\\')); return rx.test(mainPath) } )
+                    providerSpec.version = provider.version = require(`${modulesPath}/${providerSpec.moduleName}/package.json`).version
+                } else {
+                    log(`Provider '${providerSpec.name}' appears to be preloaded, but does no publish version number. Setting version '0.0.0'`)
+                    providerSpec.version = "0.0.0"
                 }
 
-                log(`Registering provider '${providerName}' v${provider.version} as '${provider.name}'`)
-
+                if (providerSpec.moduleName) {
+                    log(`Registering provider module '${providerSpec.moduleName}' v${providerSpec.version} as '${providerSpec.name}'`)
+                } else {
+                    log(`Registering anonymous provider module v${providerSpec.version} as '${providerSpec.name}'`)
+                }
                 providers[provider.name] = provider
             } catch (e) {
-                log(`Failed to load provider module '${providerName}': ${e}`)
+                log(`Failed to load provider module '${providerSpec}': ${e}`)
             }
         })
 
