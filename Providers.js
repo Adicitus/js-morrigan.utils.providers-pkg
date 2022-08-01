@@ -127,7 +127,7 @@
                 } else {
                     log(`Registering anonymous provider module v${providerSpec.version} as '${providerSpec.name}'`)
                 }
-                providers[provider.name] = provider
+                providers[providerSpec.name] = provider
             } catch (e) {
                 log(`Failed to load provider module '${providerSpec}': ${e}`)
             }
