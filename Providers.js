@@ -191,6 +191,8 @@
                         handler.openapi = endpoint.openapi
                     }
 
+                    let handlers = [handler]
+
                     // Check if we have default security middleware to apply:
                     let security = environment.security
                     // Check if the endpoint declaration provides it's own security middleware, if so use it:
@@ -199,11 +201,11 @@
                     }
                     // Only apply security middleware if declared by either the endpoint or environment:
                     if (security) {
-                        router[endpoint.method].use(endpoint.security)
+                        handlers.unshift(security)
                     }
 
                     // Apply the endpoint handler:
-                    router[endpoint.method](route, handler)
+                    router[endpoint.method](route, handlers)
                 }
             }
         }
