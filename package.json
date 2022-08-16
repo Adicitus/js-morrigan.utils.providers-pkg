@@ -1,6 +1,6 @@
 {
   "name": "@adicitus/morrigan.utils.providers",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Utility to handle the loading and setup of providers for Morrigan.",
   "main": "Providers.js",
   "scripts": {

@@ -34,6 +34,7 @@
      *  - method: A HTTP method.
      *  - handler: A function to be registered as handler fo the endpoint.
      *  - openapi: A OpenAPI specification for the endpoint path (see https://swagger.io/specification/#path-item-object). This can also be attached directly to the handler.
+     *  - security: A middleware function to apply to the endpoint. This overrides any default security middleware set by the environment. To strip any security for the endpoint, set this to null.
      * 
      * @param router Express router to register endpoints on.
      * @param providersList Array of module names that should be loaded as providers.
@@ -55,6 +56,7 @@
             providers = {}
         }
 
+        // Inventory the list of providers and generate a list of normalized provider specifications:
         providersList.forEach(providerSpec => {
             try {
                 // Resolve provider module:
@@ -133,15 +135,17 @@
             }
         })
 
+        // Perform setup on the providers and wait for them to finish:
+        let promises = []
         for (const p in providers) {
             let provider = providers[p]
-            let promises = []
             if (provider.setup) {
                 promises.push(provider.setup(environment, providers))
             }
-            await Promise.all(promises)
         }
+        await Promise.all(promises)
 
+        // Perform endpoint registration:
         for (var namespace in providers) {
             let endpoints = providers[namespace].endpoints
             if (endpoints && Array.isArray(endpoints)) {
@@ -175,12 +179,30 @@
                     if (endpoint.openapi) {
                         // Create a new anonmyous wrapper for the handler:
                         handler = (...args) => {
-                            endpoint.handler(...args)
+                            try {
+                                endpoint.handler(...args)
+                            } catch (e) {
+                                e._traceId = Math.random().toString(16).split('.')[1].toString()
+                                log(`An unexpected error occurred while accessing ${route} from ${req.connection.remoteAddress} (trace ID: ${e._traceId}): ${e.message}`, 'error')
+                                log(JSON.stringify(e), 'debug')
+                            }
                         }
                         // Attach the openapi declaration to the handler:
                         handler.openapi = endpoint.openapi
                     }
 
+                    // Check if we have default security middleware to apply:
+                    let security = environment.security
+                    // Check if the endpoint declaration provides it's own security middleware, if so use it:
+                    if (endpoint.security || endpoint.security === null) {
+                        security = endpoint.security
+                    }
+                    // Only apply security middleware if declared by either the endpoint or environment:
+                    if (security) {
+                        router[endpoint.method].use(endpoint.security)
+                    }
+
+                    // Apply the endpoint handler:
                     router[endpoint.method](route, handler)
                 }
             }
