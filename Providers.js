@@ -174,19 +174,18 @@
 
                     log(`${endpoint.method.toUpperCase().padStart(7, ' ')} ${route}`)
 
-                    let handler = endpoint.handler
+                    // Create a new anonmyous wrapper for the handler:
+                    let handler = (...args) => {
+                        try {
+                            endpoint.handler(...args)
+                        } catch (e) {
+                            e._traceId = Math.random().toString(16).split('.')[1].toString()
+                            log(`An unexpected error occurred while accessing ${route} from ${req.connection.remoteAddress} (trace ID: ${e._traceId}): ${e.message}`, 'error')
+                            log(JSON.stringify(e), 'debug')
+                        }
+                    }
 
                     if (endpoint.openapi) {
-                        // Create a new anonmyous wrapper for the handler:
-                        handler = (...args) => {
-                            try {
-                                endpoint.handler(...args)
-                            } catch (e) {
-                                e._traceId = Math.random().toString(16).split('.')[1].toString()
-                                log(`An unexpected error occurred while accessing ${route} from ${req.connection.remoteAddress} (trace ID: ${e._traceId}): ${e.message}`, 'error')
-                                log(JSON.stringify(e), 'debug')
-                            }
-                        }
                         // Attach the openapi declaration to the handler:
                         handler.openapi = endpoint.openapi
                     }
@@ -209,8 +208,6 @@
                 }
             }
         }
-
-        console.log(providers)
 
         return providers
     }
