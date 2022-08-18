@@ -174,6 +174,12 @@
 
                     log(`${endpoint.method.toUpperCase().padStart(7, ' ')} ${route}`)
 
+                    // Exception for WebSocket connection endpoints, since wrapping the handler does not seem to work.
+                    if (endpoint.method === 'ws') {
+                        router.ws(route, endpoint.handler)
+                        continue
+                    }
+
                     // Create a new anonmyous wrapper for the handler:
                     let handler = (...args) => {
                         try {
