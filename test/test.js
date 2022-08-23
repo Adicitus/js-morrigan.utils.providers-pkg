@@ -7,7 +7,7 @@ const http = require('http')
 const app = express()
 expressws(app)
 
-Providers.enableDefaltLogger = false
+Providers.enableDefaultLogger = false
 
 let env = {
     log: () => { /* NOOP */ },

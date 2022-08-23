@@ -1,3 +1,5 @@
+"strict"
+
 const express = require('express')
 
 const _endpointMethods = require('http').METHODS.map(m => m.toLowerCase()).concat(['ws'])
@@ -10,7 +12,7 @@ const _endpointMethods = require('http').METHODS.map(m => m.toLowerCase()).conca
     /**
      * Set this to false if you wish to silence the default logging function.
      */
-    static enableDefaltLogger = true
+    static enableDefaultLogger = true
 
     /**
      * Default logging function used by this utility if none is provided.
@@ -19,7 +21,7 @@ const _endpointMethods = require('http').METHODS.map(m => m.toLowerCase()).conca
      * @param {string} level Severity of this log entry. 
      */
     static async defaultLogger(msg, level) {
-        if (this.enableDefaltLogger) {
+        if (Providers.enableDefaultLogger) {
             console.log(`morrigan.utils.providers default logger | ${level? level : 'info'}: ${msg}`)
         }
     }
