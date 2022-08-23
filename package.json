@@ -1,6 +1,6 @@
 {
   "name": "@adicitus/morrigan.utils.providers",
-  "version": "1.2.5",
+  "version": "2.0.0",
   "description": "Utility to handle the loading and setup of providers for Morrigan.",
   "main": "Providers.js",
   "scripts": {
@@ -18,5 +18,12 @@
   "bugs": {
     "url": "https://github.com/adicitus/js-morrigan.utils.providers-pkg/issues"
   },
-  "homepage": "https://github.com/adicitus/js-morrigan.utils.providers-pkg#readme"
+  "homepage": "https://github.com/adicitus/js-morrigan.utils.providers-pkg#readme",
+  "dependencies": {
+    "express": "^4.18.1"
+  },
+  "devDependencies": {
+    "express-ws": "^5.0.2",
+    "mocha": "^10.0.0"
+  }
 }

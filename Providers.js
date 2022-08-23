@@ -1,13 +1,34 @@
+const express = require('express')
+
+const _endpointMethods = require('http').METHODS.map(m => m.toLowerCase()).concat(['ws'])
+
 /**
  * Class containing logic for loading providers and adding them to Morrigan.
  */
  class Providers {
 
     /**
-     * Enumerates and loads providers specified by providersList, adding any exported endpoints to
+     * Set this to false if you wish to silence the default logging function.
+     */
+    static enableDefaltLogger = true
+
+    /**
+     * Default logging function used by this utility if none is provided.
+     * 
+     * @param {object} msg Message to log.
+     * @param {string} level Severity of this log entry. 
+     */
+    static async defaultLogger(msg, level) {
+        if (this.enableDefaltLogger) {
+            console.log(`morrigan.utils.providers default logger | ${level? level : 'info'}: ${msg}`)
+        }
+    }
+
+    /**
+     * Enumerates and loads providers specified by providerSpecs, adding any exported endpoints to
      * the provided router object.
      * 
-     * Providers can be specified using a string, and object or a function:
+     * Providers can be specified using a string, and object or a function object:
      *   - A string that should be the name of a module that can be resolved using 'require'.
      *   - A complex type (object/function) with a combination of the following keys:
      *     - name: The name under which this provider will be registered.
@@ -36,28 +57,49 @@
      *  - openapi: A OpenAPI specification for the endpoint path (see https://swagger.io/specification/#path-item-object). This can also be attached directly to the handler.
      *  - security: A middleware function to apply to the endpoint. This overrides any default security middleware set by the environment. To strip any security for the endpoint, set this to null.
      * 
-     * @param router Express router to register endpoints on.
-     * @param providersList Array of module names that should be loaded as providers.
-     * @param environment Core environment
+     * In order to help configure providers, the caller can pass information in the 'environment' parameter obejct.
+     * 
+     * This method assumes that the 'environment' object contains the following properties, and will generate default values if they do not:
+     * - log: A logging function: (msg, level) => { #Logging logic# }. If not set, this will be set to console.log.
+     * - router: An Expressjs router that any endpoints exported by the providers will be attached to. If not set, a new router object will be generated. 
+     * 
+     * @param providerSpecs Array of module names that should be loaded as providers.
+     * @param environment Core environment, this object will be passed to all providers that decalre a 'setup' method. If not provided an empty object with default values will be used.
      * @param providers Prepopulated providers list, this object will be returned by the function. This parameter can be safely omitted, in which case a new object will be created.
      * @returns An object mapping provider names to loaded provider modules.
      */
-    static async setup (router, providersList, environment, providers) {
+    static async setup (providerSpecs, environment, providers) {
 
-        const log = environment.log
-
-        log(`Loading providers...`)
-
-        if (!Array.isArray(providersList)) {
-            providersList = [providersList]
-        }
+        // Ensure that we have an environment object
+        environment = environment || {}
+        // Make sure that we have a root router
+        environment.router = environment.router || express.Router()
+        const log = environment.log = (typeof environment.log === 'function')? environment.log : Providers.defaultLogger 
+        
+        
 
         if (!providers) {
             providers = {}
         }
 
+        if (!providerSpecs) {
+            log (`No providerSpecs provided.`)
+            return providers
+        }
+
+        if (Array.isArray(providerSpecs)) {
+            if (providerSpecs.length === 0) {
+                log(`ProvderSpecs empty.`)
+                return providers
+            }
+        } else {
+            providerSpecs = [providerSpecs]
+        }
+
+        log(`Loading providers...`)
+
         // Inventory the list of providers and generate a list of normalized provider specifications:
-        providersList.forEach(providerSpec => {
+        providerSpecs.forEach(providerSpec => {
             try {
                 // Resolve provider module:
                 switch (typeof providerSpec) {
@@ -121,7 +163,7 @@
                     providerSpec.version = provider.version = require(`${modulesPath}/${providerSpec.moduleName}/package.json`).version
                 } else {
                     log(`Provider '${providerSpec.name}' appears to be preloaded, but does no publish version number. Setting version '0.0.0'`)
-                    providerSpec.version = "0.0.0"
+                    providerSpec.version = provider.version = "0.0.0"
                 }
 
                 if (providerSpec.moduleName) {
@@ -135,19 +177,26 @@
             }
         })
 
+        let routers = {}
+
         // Perform setup on the providers and wait for them to finish:
         let promises = []
         for (const p in providers) {
             let provider = providers[p]
+            routers[provider.name] = express.Router()
+            environment.router.use(`/${provider.name}`, routers[provider.name])
             if (provider.setup) {
-                promises.push(provider.setup(environment, providers))
+                let env = Object.assign({}, environment)
+                env.router = routers[provider.name]
+                promises.push(provider.setup(env, providers))
             }
         }
         await Promise.all(promises)
 
         // Perform endpoint registration:
         for (var namespace in providers) {
-            let endpoints = providers[namespace].endpoints
+            let provider = providers[namespace]
+            let endpoints = provider.endpoints
             if (endpoints && Array.isArray(endpoints)) {
 
                 log (`Registering endpoints for '${namespace}':`)
@@ -160,10 +209,12 @@
                         continue
                     }
 
-                    if (!endpoint.method || typeof(endpoint.method) !== 'string' || !['connect', 'delete', 'get', 'head', 'options', 'patch', 'post', 'put', 'trace', 'ws'].includes(endpoint.method)) {
+                    if (!endpoint.method || typeof(endpoint.method) !== 'string' || !_endpointMethods.includes(endpoint.method.toLowerCase())) {
                         log(`Invalid endpoint method specified: ${endpoint.method}`)
                         continue
                     }
+
+                    let method = endpoint.method.toLowerCase()
 
                     if (!endpoint.handler || typeof(endpoint.handler) !== 'function') {
                         log(`Invalid endpoint handler specified: ${endpoint.handler}`)
@@ -172,11 +223,11 @@
 
                     let route = `/${namespace}${endpoint.route}`
 
-                    log(`${endpoint.method.toUpperCase().padStart(7, ' ')} ${route}`)
+                    log(`${method.toUpperCase().padStart(7, ' ')} ${route}`)
 
                     // Exception for WebSocket connection endpoints, since wrapping the handler does not seem to work.
-                    if (endpoint.method === 'ws') {
-                        router.ws(route, endpoint.handler)
+                    if (method === 'ws') {
+                        routers[provider.name].ws(route, endpoint.handler)
                         continue
                     }
 
@@ -210,7 +261,7 @@
                     }
 
                     // Apply the endpoint handler:
-                    router[endpoint.method](route, handlers)
+                    routers[provider.name][endpoint.method](route, handlers)
                 }
             }
         }
