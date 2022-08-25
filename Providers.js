@@ -185,8 +185,11 @@ const _endpointMethods = require('http').METHODS.map(m => m.toLowerCase()).conca
         let promises = []
         for (const p in providers) {
             let provider = providers[p]
-            routers[provider.name] = express.Router()
+            //routers[provider.name] = environment.router
+            let subRouter = express.Router({mergeParams: true})
+            routers[provider.name] = subRouter
             environment.router.use(`/${provider.name}`, routers[provider.name])
+            subRouter._morrigan = { route: `/${provider.name}` }
             if (provider.setup) {
                 let env = Object.assign({}, environment)
                 env.router = routers[provider.name]
@@ -223,7 +226,7 @@ const _endpointMethods = require('http').METHODS.map(m => m.toLowerCase()).conca
                         continue
                     }
 
-                    let route = `/${namespace}${endpoint.route}`
+                    let route = `${endpoint.route}`
 
                     log(`${method.toUpperCase().padStart(7, ' ')} ${route}`)
 
