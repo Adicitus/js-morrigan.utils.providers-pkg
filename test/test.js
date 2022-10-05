@@ -1,8 +1,9 @@
 const assert = require('assert')
 const express = require('express')
 const expressws = require('express-ws')
-const Providers = require('../Providers')
 const http = require('http')
+const Providers = require('../Providers')
+const StateStore = require('@adicitus/morrigan.utils.statestore')
 
 const app = express()
 expressws(app)
@@ -56,6 +57,12 @@ function debugProviderEndpoints() {
 
 
 describe('morrigan.utils.providers', () => {
+
+    before(async () => {
+        let rootStore = await StateStore('./data/state')
+        env.state = await rootStore.getStore('test', 'delegate')
+    })
+
     describe('setup', () => {
 
         describe("Signature", () => {
@@ -111,40 +118,89 @@ describe('morrigan.utils.providers', () => {
                     assert.ok(providers.debugBasic)
                 })
 
-                it("Should generate a new default environment object if not provided by the caller.", async () => {
-                    let specs = [{ module: new debugProviderBasic() }]
-                    let providers = await Providers.setup(specs)
-                    assert.ok(providers.debugBasic.environment)
-                    assert.equal(providers.debugBasic.environment.toString(), '[object Object]')
-                })
+                describe("environment", () => {
 
-                it("Should add Providers.defaultLogger as 'log' property on the default environment object.", async() => {
-                    let specs = [{ module: new debugProviderBasic() }]
-                    let providers = await Providers.setup(specs)
-                    assert.ok(providers.debugBasic.environment.log)
-                    assert.equal(typeof providers.debugBasic.environment.log, 'function')
-                    assert.equal(providers.debugBasic.environment.log, Providers.defaultLogger)
-                })
+                    describe("Default behavior, if no 'environment' object is provided by the caller", () => {
 
-                it("Should generate a new Expressjs Router as 'router' property on the default environment object.", async() => {
-                    let specs = [{ module: new debugProviderBasic() }]
-                    let providers = await Providers.setup(specs)
-                    assert.ok(providers.debugBasic.environment.router)
-                    assert.equal(typeof providers.debugBasic.environment.router, 'function')
-                })
+                        it("Should generate a new default environment object if not provided by the caller.", async () => {
+                            let specs = [{ module: new debugProviderBasic() }]
+                            let providers = await Providers.setup(specs)
+                            assert.ok(providers.debugBasic.environment)
+                            assert.equal(providers.debugBasic.environment.toString(), '[object Object]')
+                        })
 
-                it("Should generate a copy of the environment object for each provider.", async () => {
-                    let specs = [{ module: new debugProviderBasic() }]
-                    let providers = await Providers.setup(specs, env)
-                    assert.notEqual(providers.debugBasic.environment, env)
-                    assert.equal(providers.debugBasic.environment.log, env.log)
-                })
+                        it("Should add Providers.defaultLogger as 'log' property on the default environment object.", async() => {
+                            let specs = [{ module: new debugProviderBasic() }]
+                            let providers = await Providers.setup(specs)
+                            assert.ok(providers.debugBasic.environment.log)
+                            assert.equal(typeof providers.debugBasic.environment.log, 'function')
+                            assert.equal(providers.debugBasic.environment.log, Providers.defaultLogger)
+                        })
 
-                it("Should generate a new Expressjs Router for each provider", async () => {
-                    let specs = [{ module: new debugProviderBasic() }]
-                    let providers = await Providers.setup(specs)
-                    assert.ok(providers.debugBasic.environment.router)
-                    assert.notEqual(providers.debugBasic.environment.router, env.router)
+                        it("Should generate a new Expressjs Router as 'router' property on the default environment object.", async() => {
+                            let specs = [{ module: new debugProviderBasic() }]
+                            let providers = await Providers.setup(specs)
+                            assert.ok(providers.debugBasic.environment.router)
+                            assert.equal(typeof providers.debugBasic.environment.router, 'function')
+                        })
+                    })
+
+                    describe("Custom behavior", () => {
+
+                        it("Should generate a copy of the environment object for each provider, if one is provided by the caller.", async () => {
+                            let specs = [{ module: new debugProviderBasic() }]
+                            let providers = await Providers.setup(specs, env)
+                            assert.notEqual(providers.debugBasic.environment, env)
+                            assert.equal(providers.debugBasic.environment.log, env.log)
+                        })
+
+                        it("Should generate a new Expressjs Router for each provider", async () => {
+                            let specs = [{ module: new debugProviderBasic() }]
+                            let providers = await Providers.setup(specs)
+                            assert.ok(providers.debugBasic.environment.router)
+                            assert.notEqual(providers.debugBasic.environment.router, env.router)
+                        })
+
+                        it("If given a 'delegate' StateStore object, Should generate a StateStore object for each provider and pass it as 'environment.state'", async () => {
+                            let specs = [
+                                { name: 'provider1', module: new debugProviderBasic() }
+                            ]
+                            let providers = await Providers.setup(specs, env)
+                            assert.ok(providers.provider1.environment.state)
+                        })
+
+                        it("Should generate 'simple' StateStore objects", async () => {
+                            let specs = [
+                                { name: 'provider1', module: new debugProviderBasic() }
+                            ]
+                            let providers = await Providers.setup(specs, env)
+                            assert.ok(providers.provider1.environment.state)
+                            let state1 = providers.provider1.environment.state
+                            assert.ok(state1.set)
+                            assert.ok(state1.get)
+                            assert.ok(state1.remove)
+                            assert.equal(state1.storage, undefined)
+                            assert.equal(state1.getStore, undefined)
+                        })
+
+                        it("Should generate a unique StateStore object for each provider", async () => {
+                            let specs = [
+                                { name: 'provider1', module: new debugProviderBasic() },
+                                { name: 'provider2', module: new debugProviderBasic() }
+                            ]
+                            let providers = await Providers.setup(specs, env)
+                            assert.ok(providers.provider1.environment.state)
+                            assert.ok(providers.provider2.environment.state)
+
+                            assert.notDeepEqual(providers.provider1.environment.state, providers.provider2.environment.state)
+
+                            let v1 = Math.random().toString(16).split('.')[1]
+                            await providers.provider1.environment.state.set('v', v1)
+                            let v2 = await providers.provider2.environment.state.get('v')
+                            assert.notDeepEqual(v1, v2)
+
+                        })
+                    })
                 })
             })
 

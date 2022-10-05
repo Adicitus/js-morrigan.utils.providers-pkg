@@ -63,7 +63,10 @@ const _endpointMethods = require('http').METHODS.map(m => m.toLowerCase()).conca
      * 
      * This method assumes that the 'environment' object contains the following properties, and will generate default values if they do not:
      * - log: A logging function: (msg, level) => { #Logging logic# }. If not set, this will be set to console.log.
-     * - router: An Expressjs router that any endpoints exported by the providers will be attached to. If not set, a new router object will be generated. 
+     * - router: An Expressjs router that any endpoints exported by the providers will be attached to. If not set, a new router object will be generated.
+     * 
+     * The method also recognizes the following optional properties:
+     * state: If this is a a StateStore object with a 'delegate' scope (has the 'getStore' method), the setup will use this to generate new 'simple' StateStore objects for the providers.
      * 
      * @param providerSpecs Array of module names that should be loaded as providers.
      * @param environment Core environment, this object will be passed to all providers that decalre a 'setup' method. If not provided an empty object with default values will be used.
@@ -185,7 +188,6 @@ const _endpointMethods = require('http').METHODS.map(m => m.toLowerCase()).conca
         let promises = []
         for (const p in providers) {
             let provider = providers[p]
-            //routers[provider.name] = environment.router
             let subRouter = express.Router({mergeParams: true})
             routers[provider.name] = subRouter
             environment.router.use(`/${provider.name}`, routers[provider.name])
@@ -193,6 +195,13 @@ const _endpointMethods = require('http').METHODS.map(m => m.toLowerCase()).conca
             if (provider.setup) {
                 let env = Object.assign({}, environment)
                 env.router = routers[provider.name]
+                if (env.state) {
+                    if (env.state.getStore) {
+                        env.state = await environment.state.getStore(p, 'simple')
+                    } else {
+                        delete env.state
+                    }
+                }
                 promises.push(provider.setup(env, providers))
             }
         }
