@@ -189,12 +189,12 @@ const _endpointMethods = require('http').METHODS.map(m => m.toLowerCase()).conca
         for (const p in providers) {
             let provider = providers[p]
             let subRouter = express.Router({mergeParams: true})
-            routers[provider.name] = subRouter
-            environment.router.use(`/${provider.name}`, routers[provider.name])
-            subRouter._morrigan = { route: `/${provider.name}` }
+            routers[p] = subRouter
+            environment.router.use(`/${p}`, routers[p])
+            subRouter._morrigan = { route: `/${p}` }
             if (provider.setup) {
                 let env = Object.assign({}, environment)
-                env.router = routers[provider.name]
+                env.router = routers[p]
                 if (env.state) {
                     if (env.state.getStore) {
                         env.state = await environment.state.getStore(p, 'simple')
@@ -241,7 +241,7 @@ const _endpointMethods = require('http').METHODS.map(m => m.toLowerCase()).conca
 
                     // Exception for WebSocket connection endpoints, since wrapping the handler does not seem to work.
                     if (method === 'ws') {
-                        routers[provider.name].ws(route, endpoint.handler)
+                        routers[namespace].ws(route, endpoint.handler)
                         continue
                     }
 
@@ -275,7 +275,7 @@ const _endpointMethods = require('http').METHODS.map(m => m.toLowerCase()).conca
                     }
 
                     // Apply the endpoint handler:
-                    routers[provider.name][endpoint.method](route, handlers)
+                    routers[namespace][endpoint.method](route, handlers)
                 }
             }
         }

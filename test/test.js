@@ -271,6 +271,22 @@ describe('morrigan.utils.providers', () => {
                         assert.equal(handler.length, 1, `Missing OpenAPI spec for endpoint method '${method}'`)
                     })
                 })
+
+                it("Should mount provider endpoints under providerSpec name if one is provided, and provider name otherwise.", async () => {
+                    let specs = [
+                        { module: new debugProviderEndpoints() },
+                        { module: new debugProviderEndpoints(), name: 'providerSpecTest' }
+                    ]
+                    let providers = await Providers.setup(specs, env)
+
+                    assert.ok(providers.debugEndpoints.environment.router)
+                    assert.deepEqual(providers.debugEndpoints.environment.router._morrigan.route, `/debugEndpoints`)
+
+                    console.log(providers.debugEndpoints.environment.router.stack)                    
+
+                    assert.ok(providers.providerSpecTest.environment.router)
+                    assert.deepEqual(providers.providerSpecTest.environment.router._morrigan.route, `/providerSpecTest`)
+                })
             })
         })
 
