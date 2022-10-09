@@ -280,9 +280,7 @@ describe('morrigan.utils.providers', () => {
                     let providers = await Providers.setup(specs, env)
 
                     assert.ok(providers.debugEndpoints.environment.router)
-                    assert.deepEqual(providers.debugEndpoints.environment.router._morrigan.route, `/debugEndpoints`)
-
-                    console.log(providers.debugEndpoints.environment.router.stack)                    
+                    assert.deepEqual(providers.debugEndpoints.environment.router._morrigan.route, `/debugEndpoints`)         
 
                     assert.ok(providers.providerSpecTest.environment.router)
                     assert.deepEqual(providers.providerSpecTest.environment.router._morrigan.route, `/providerSpecTest`)
