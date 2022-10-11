@@ -195,6 +195,7 @@ const _endpointMethods = require('http').METHODS.map(m => m.toLowerCase()).conca
             if (provider.setup) {
                 let env = Object.assign({}, environment)
                 env.router = routers[p]
+                
                 if (env.state) {
                     if (env.state.getStore) {
                         env.state = await environment.state.getStore(p, 'simple')
@@ -202,9 +203,18 @@ const _endpointMethods = require('http').METHODS.map(m => m.toLowerCase()).conca
                         delete env.state
                     }
                 }
-                promises.push(provider.setup(env, providers))
+
+                try {
+                    let promise = provider.setup(env, providers)
+                    promises.push(promise)
+                } catch(e) {
+                    environment.log(`An error occurred while running '.setup' on provider '${p}'.`, 'error')
+                    environment.log(e, 'error')
+                    provider.error = e
+                }
             }
         }
+
         await Promise.all(promises)
 
         // Perform endpoint registration:

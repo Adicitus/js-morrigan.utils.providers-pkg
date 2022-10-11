@@ -51,8 +51,16 @@ function debugProviderEndpoints() {
     http.METHODS.concat(['ws']).forEach(m => {
         this.endpoints.push({ route: '/', method: m.toLowerCase(), security: debugSecurity,  handler: debugHandler, openapi: { get: debugOpenapi }})
     })
+}
 
+function debugProviderErrors() {
+    this.prototype = debugProviderBasic
 
+    this.name = 'debugErrors'
+    
+    this.setup = () => {
+        throw new Error("This is an unhandled exception.")
+    }
 }
 
 
@@ -284,6 +292,20 @@ describe('morrigan.utils.providers', () => {
 
                     assert.ok(providers.providerSpecTest.environment.router)
                     assert.deepEqual(providers.providerSpecTest.environment.router._morrigan.route, `/providerSpecTest`)
+                })
+            })
+
+            describe("Errors", () => {
+                it("Should handle errors internally and attach any thrown errors in the 'error' property on the failing provider.", async () => {
+                    let specs = [
+                        { module: new debugProviderErrors() },
+                        { module: new debugProviderEndpoints() }
+                    ]
+
+                    let providers = await Providers.setup(specs, env)
+
+                    assert.ok(providers[specs[0].name].error)
+                    assert.deepEqual(providers[specs[1].name].error, undefined)
                 })
             })
         })
