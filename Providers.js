@@ -103,6 +103,8 @@ const _endpointMethods = require('http').METHODS.map(m => m.toLowerCase()).conca
 
         log(`Loading providers...`)
 
+        var providerSpecsMap = {}
+
         // Inventory the list of providers and generate a list of normalized provider specifications:
         providerSpecs.forEach(providerSpec => {
             try {
@@ -177,6 +179,7 @@ const _endpointMethods = require('http').METHODS.map(m => m.toLowerCase()).conca
                     log(`Registering anonymous provider module v${providerSpec.version} as '${providerSpec.name}'`)
                 }
                 providers[providerSpec.name] = provider
+                providerSpecsMap[providerSpec.name] = providerSpec
             } catch (e) {
                 log(`Failed to load provider module '${providerSpec}': ${e}`)
             }
@@ -187,6 +190,7 @@ const _endpointMethods = require('http').METHODS.map(m => m.toLowerCase()).conca
         // Perform setup on the providers and wait for them to finish:
         let promises = []
         for (const p in providers) {
+            let providerSpec = providerSpecsMap[p]
             let provider = providers[p]
             let subRouter = express.Router({mergeParams: true})
             routers[p] = subRouter
@@ -208,11 +212,11 @@ const _endpointMethods = require('http').METHODS.map(m => m.toLowerCase()).conca
                     let promise = null
                     switch(provider.setup.constructor.name) {
                         case 'AsyncFunction':
-                            promise = provider.setup(env, providers)
+                            promise = provider.setup(env, providers, providerSpec)
                             break
                         case 'Function':
                             promise = new Promise(resolve => {
-                                resolve(provider.setup(env, providers))
+                                resolve(provider.setup(env, providers, providerSpec))
                             })
                             break
                     }

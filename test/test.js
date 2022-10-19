@@ -26,9 +26,23 @@ function debugProviderBasic() {
 
     this.version = '1.0.0'
 
-    this.setup = (environment, providers) => {
+    this.flags = {
+        setupStarted: false,
+        setupFinished: false,
+        specObjectProvided: false,
+        environmentProvided: false,
+        providersProvided: false
+    }
+
+    this.setup = (environment, providers, spec) => {
+        this.flags.setupStarted = true
+        this.flags.environmentProvided = environment !== null
         this.environment = environment
+        this.flags.providersProvided = providers !== null
         this.providers = providers
+        this.flags.specObjectProvided = spec !== null
+        this.spec = spec
+        this.flags.setupFinished = true
     }
 }
 
@@ -76,7 +90,10 @@ function debugProviderErrorsSync() {
 
 describe('morrigan.utils.providers', () => {
 
+    var nanoid = null
+
     before(async () => {
+        nanoid = (await import('nanoid')).nanoid
         let rootStore = await StateStore('./data/state')
         env.state = await rootStore.getStore('test', 'delegate')
     })
@@ -302,6 +319,17 @@ describe('morrigan.utils.providers', () => {
 
                     assert.ok(providers.providerSpecTest.environment.router)
                     assert.deepEqual(providers.providerSpecTest.environment.router._morrigan.route, `/providerSpecTest`)
+                })
+
+                it("Should provide the provider specification object to .setup as 'spec'.", async () => {
+                    let specs = [
+                        { module: new debugProviderBasic(), name: 'providerSpecTest', secret: nanoid(32) }
+                    ]
+                    let providers = await Providers.setup(specs, env)
+
+                    assert.ok(providers.providerSpecTest.flags.specObjectProvided)
+                    assert.ok(providers.providerSpecTest.spec)
+                    assert.deepEqual(specs[0], providers.providerSpecTest.spec)
                 })
             })
 
