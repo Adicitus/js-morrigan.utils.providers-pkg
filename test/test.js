@@ -58,6 +58,16 @@ function debugProviderErrors() {
 
     this.name = 'debugErrors'
     
+    this.setup = async () => {
+        throw new Error("This is an unhandled exception.")
+    }
+}
+
+function debugProviderErrorsSync() {
+    this.prototype = debugProviderBasic
+
+    this.name = 'debugErrors'
+    
     this.setup = () => {
         throw new Error("This is an unhandled exception.")
     }
@@ -298,14 +308,16 @@ describe('morrigan.utils.providers', () => {
             describe("Errors", () => {
                 it("Should handle errors internally and attach any thrown errors in the 'error' property on the failing provider.", async () => {
                     let specs = [
-                        { module: new debugProviderErrors() },
-                        { module: new debugProviderEndpoints() }
+                        { name: 'errors', module: new debugProviderErrors() },
+                        { name: 'errorsSync', module: new debugProviderErrorsSync() },
+                        { name: 'endpoints', module: new debugProviderEndpoints() }
                     ]
 
                     let providers = await Providers.setup(specs, env)
 
-                    assert.ok(providers[specs[0].name].error)
-                    assert.deepEqual(providers[specs[1].name].error, undefined)
+                    assert.ok(providers.errors.error)
+                    assert.ok(providers.errorsSync.error)
+                    assert.deepEqual(providers.endpoints.error, undefined)
                 })
             })
         })

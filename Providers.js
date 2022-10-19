@@ -192,7 +192,7 @@ const _endpointMethods = require('http').METHODS.map(m => m.toLowerCase()).conca
             routers[p] = subRouter
             environment.router.use(`/${p}`, routers[p])
             subRouter._morrigan = { route: `/${p}` }
-            if (provider.setup) {
+            if (typeof provider.setup === 'function') {
                 let env = Object.assign({}, environment)
                 env.router = routers[p]
                 
@@ -205,17 +205,34 @@ const _endpointMethods = require('http').METHODS.map(m => m.toLowerCase()).conca
                 }
 
                 try {
-                    let promise = provider.setup(env, providers)
+                    let promise = null
+                    switch(provider.setup.constructor.name) {
+                        case 'AsyncFunction':
+                            promise = provider.setup(env, providers)
+                            break
+                        case 'Function':
+                            promise = new Promise(resolve => {
+                                resolve(provider.setup(env, providers))
+                            })
+                            break
+                    }
+
+                    promise.catch(e => {
+                        environment.log(`An error occurred in '.setup' on provider '${p}': ${e}`, 'error')
+                        environment.log(e, 'error')
+                        provider.error = e
+                    })
+
                     promises.push(promise)
                 } catch(e) {
-                    environment.log(`An error occurred while running '.setup' on provider '${p}'.`, 'error')
+                    environment.log(`An error occurred while invoking '.setup' on provider '${p}' as an asynchronous function: ${e}`, 'error')
                     environment.log(e, 'error')
                     provider.error = e
                 }
             }
         }
 
-        await Promise.all(promises)
+        await Promise.allSettled(promises)
 
         // Perform endpoint registration:
         for (var namespace in providers) {
